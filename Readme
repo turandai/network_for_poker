@@ -1,0 +1,8 @@
+9.9
+To tell wether a client has shut down the connection from its side, then decide to delete it or not on this side.
+
+9.11
+server:
+    to unpack and respond for various data
+client:
+    begin
