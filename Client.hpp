@@ -16,10 +16,12 @@
 #include <fcntl.h>
 #include <thread>
 #include <ctime>
+#include "User.hpp"
 
 class Client {
 private:
     sockaddr_in server;
+    //User user;
     
 public:
     int connectSocket;

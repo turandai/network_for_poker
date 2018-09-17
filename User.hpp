@@ -1,14 +1,29 @@
-//
-//  User.hpp
-//  poker
-//
-//  Created by Turan Dai on Fri14Sep.
-//  Copyright © 2018 Turan. All rights reserved.
-//
-
 #ifndef User_hpp
 #define User_hpp
 
-#include <stdio.h>
+#include <fstream>
+#include <iostream>
+#include <cstring>
+#include <vector>
 
-#endif /* User_hpp */
+class User {
+public:
+    std::string name, pwd;
+    int money;
+    User(std::string name, std::string pwd, int money)
+    : name(name), pwd(pwd), money(money) {}
+};
+
+class UserControl {
+private:
+    std::fstream file;
+    std::vector<User> users;
+    
+public:
+    UserControl();
+    void show();
+    std::string find(std::string, std::string);
+    
+};
+
+#endif

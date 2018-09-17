@@ -10,15 +10,16 @@ private:
     sockaddr_in server, clientTemp;
     std::vector<Client> clients;
     socklen_t len;
-    bool exist = false;
-    
+    bool exist = false, status = false;
+    UserControl userControl;
     
 public:
     Server();
     bool run(int = 60000); // run server
     bool respond(Client); // recieve data and respond
     void filter(); // delete invalid client sockets
-    
+    void stop();
+    ~Server();
     
 };
 

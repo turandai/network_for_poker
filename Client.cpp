@@ -48,15 +48,11 @@ std::string Client::recieve() {
     return "";
 }
 
-bool log_in(std::string name, std::string pwd) {
+bool Client::log_in(std::string name, std::string pwd) {
     std::string temp = "lgin";
     temp += std::to_string(name.length()) + name;
     temp += std::to_string(pwd.length()) + pwd;
-    send(connectSoket, temp.data(), 1024, 0);
-    
-    
-    
-    return true;
+    return send(temp);
 }
 
 
