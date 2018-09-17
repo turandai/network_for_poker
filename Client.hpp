@@ -1,27 +1,45 @@
 #ifndef Client_hpp
 #define Client_hpp
 
-#include "Transfer.hpp"
+#include <iostream>
+#include <vector>
+#include <cstring>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/poll.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <sys/shm.h>
+#include <stdlib.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <thread>
+#include <ctime>
 
 class Client {
 private:
-    int connectSocket;
-    sockaddr_in sockaddr;
+    sockaddr_in server;
     
 public:
+    int connectSocket;
     std::string ip;
     int port;
-    bool connect;
+    bool status;
+    char recvBuf[1024];
     
-    char buf[1024];
+    Client();
     
     Client(int connectSocket, sockaddr_in sockaddr);
     
-    in_addr_t get_ip();
+    bool connect(std::string, int = 60000);
     
-    in_port_t get_port();
+    bool send(std::string);
     
-    int get_socket();
+    std::string recieve();
+    
+    bool log_in(std::string, std::string);
+    
     
     
 };
