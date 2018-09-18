@@ -16,13 +16,14 @@ public:
 
 class UserControl {
 private:
-    std::fstream file;
     std::vector<User> users;
     
 public:
     UserControl();
     void show();
     std::string find(std::string, std::string);
+    void add(std::string, std::string);
+    ~UserControl();
     
 };
 

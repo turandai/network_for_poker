@@ -42,6 +42,8 @@ public:
     
     bool log_in(std::string, std::string);
     
+    bool sign_up(std::string, std::string);
+    
     
     
 };

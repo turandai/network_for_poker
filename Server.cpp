@@ -71,6 +71,17 @@ bool Server::respond(Client c) {
             //std::cout << findResult;
             c.send(findResult);
         }
+        else if (type == "siup") {
+            std::string name = s.substr(1, (int)s[0] - 48);
+            s = s.substr(1 + (int)s[0] - 48);
+            std::string pwd = s.substr(1, (int)s[0] - 48);
+            std::string findResult = userControl.find(name, pwd);
+            if (findResult == "User not found") {
+                userControl.add(name, pwd);
+                c.send("Welcome");
+            }
+            else c.send("User already exists");
+        }
     }
     else if (len == 0) {
         return false;
