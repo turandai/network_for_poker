@@ -9,3 +9,6 @@ client:
 
 9.15
 tell clients when the server is shut down
+
+9.18
+to test on windows
