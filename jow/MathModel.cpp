@@ -205,7 +205,7 @@ void MathModel::startLocalGame(unsigned int randSeed)
     players[now].addCard(hiddenCards.getCardSet());
     
     
-    cardSet table;
+    
     int last=now;
     while(1)
     {
@@ -263,4 +263,13 @@ void MathModel::startLocalGame(unsigned int randSeed)
         now%=3;
     }
     
+}
+
+std::string MathModel::cardSetToString() {
+    cardSet c = table;
+    std::string temp = std::to_string(c.size());
+    for (std::set<Card>::iterator i = c.begin(); i != c.end(); i++) {
+        temp += " " + std::to_string(i->id);
+    }
+    return temp;
 }

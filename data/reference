@@ -1,0 +1,17 @@
+lgin: log in
+    done: success
+    wpsd: wrong password
+    ntfd: user not found
+lgot: log out
+siup: sign up
+    done: success
+    bglt: name should begin with letter
+    nosp: name can't contain space
+    invd: invalid name or password
+    exis: user already exists
+prep: prepare
+    csld: randomly choose a landlord
+uscd: use card
+beld: compete landlord
+ldld: final landlord
+wins: wins

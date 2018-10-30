@@ -5,8 +5,14 @@ Server::Server() {
     fcntl(serverSocket, F_SETFL, fcntl(serverSocket, F_GETFL, 0) | O_NONBLOCK);
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = htonl(INADDR_ANY);
+    int temp = 1;
+    setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (void*)&temp, sizeof(temp));
+    setsockopt(serverSocket, SOL_SOCKET, SO_NOSIGPIPE, (void*)&temp, sizeof(temp));
     memset(&clientTemp, 0, sizeof(clientTemp));
     len = sizeof(clientTemp);
+    status = false;
+    
+    //new_game();
 }
 
 bool Server::run(int port) {
@@ -21,35 +27,15 @@ bool Server::run(int port) {
     socklen_t len = sizeof(clientTemp);
     // running loop
     while (true) {
-        if (clients.size() < 3) {
-            connectSocketTemp = accept(serverSocket, (sockaddr*)&clientTemp, &len);
-            // accept connection requests
-            if (connectSocketTemp >= 0) {
-                // wether it has already connected
-                exist = false;
-                for (std::vector<Client>::iterator i = clients.begin(); i != clients.end(); i++) {
-                    if (i->ip == inet_ntoa(clientTemp.sin_addr)
-                        //and i->port == ntohs(clientTemp.sin_port)
-                        ) {
-                        exist = true;
-                        break;
-                    }
-                }
-                if (exist) {
-                    std::cout << "Connection already exist: " << inet_ntoa(clientTemp.sin_addr) << ": " << ntohs(clientTemp.sin_port) << std::endl;
-                }
-                else {
-                    clients.push_back(*new Client(connectSocketTemp, clientTemp));
-                    clients[clients.size() - 1].send("connected");
-                    std::cout << "Connected from: " << inet_ntoa(clientTemp.sin_addr) << " " << ntohs(clientTemp.sin_port) << std::endl;
-                }
-            }
+        connectSocketTemp = accept(serverSocket, (sockaddr*)&clientTemp, &len);
+        if (connectSocketTemp >= 0) {
+            allClients.push_back(new Client(connectSocketTemp, clientTemp));
+            allClients.back()->send("cntd");
+            std::cout << "Connected from: " << inet_ntoa(clientTemp.sin_addr) << std::endl;
         }
-        else std::cout << "Enough players\n";
-        // respond to recieved data
-        for (std::vector<Client>::iterator i = clients.begin(); i != clients.end(); i++) {
+        for (auto i = allClients.begin(); i != allClients.end(); i++) {
             if (!respond(*i)) {
-                i->status = false;
+                (*i)->status = false;
             }
         }
         // filter out inactive clients
@@ -58,9 +44,9 @@ bool Server::run(int port) {
     return true;
 }
 
-bool Server::respond(Client &c) {
-    int len = (int)recv(c.connectSocket, c.recvBuf, sizeof(c.recvBuf), 0);
-    std::string s = c.recvBuf, type;
+bool Server::respond(Client* c) {
+    int len = (int)recv(c->connectSocket, c->recvBuf, sizeof(c->recvBuf), 0);
+    std::string s = c->recvBuf, type;
     /* value of len
        -1: recieve nothing or error occurred
        =0: client shut down the connection
@@ -69,93 +55,124 @@ bool Server::respond(Client &c) {
     if (len > 0) {
         type = s.substr(0, 4);
         s = s.substr(4);
+        std::string who = c->ip;
+        if (c->user.name != "") who = c->user.name;
+        std::cout << who << ": " + type + "\n";
         if (type == "lgin") {
             std::string name = s.substr(1, (int)s[0] - 48);
             s = s.substr(1 + (int)s[0] - 48);
             std::string pwd = s.substr(1, (int)s[0] - 48);
-            if (c.user.name != "") {
-                c.send("Already logged in as: " + name);
+            if (name == "" or pwd == "") return true;
+            bool exist = false;
+            for (auto i = allClients.begin(); i != allClients.end(); i++) {
+                if ((*i)->user.name == name) exist = true;
+            }
+            if (exist) {
+                c->send(type + "fail");
             }
             else {
                 std::string findResult = userControl.find(name, pwd);
-                if (findResult == "Welcome") {
-                    c.user = userControl.get(name);
-                    c.send("Welcome " + name);
+                if (findResult == "done") {
+                    c->user = userControl.get(name);
+                    std::cout << "    " + name + " online\n";
                 }
-                else c.send(findResult);
+                c->send(type + findResult);
             }
         }
         else if (type == "lgot") {
-            std::string temp = c.user.name;
-            c.user.init();
-            c.send("Goodbye " + temp);
+            std::cout << "    " + c->user.name + " offline\n";
+            c->user.init("total");
         }
         else if (type == "siup") {
             std::string name = s.substr(1, (int)s[0] - 48);
             s = s.substr(1 + (int)s[0] - 48);
             bool check = true;
             if ((name[0] < 'a' or name[0] > 'z') and (name[0] < 'A' or name[0] > 'Z')) {
-                c.send("Username must begin with an letter");
+                c->send(type + "bglt"); // name should begin with letter
                 check = false;
             }
             else {
                 for (int i = 0; i < s.length(); i++) {
                     if (s[i] == ' ') {
-                        c.send("Username can't contain space");
+                        c->send(type + "nosp"); // name can't contain space
                         check = false;
                     }
                 }
             }
             if (check) {
                 std::string pwd = s.substr(1, (int)s[0] - 48);
-                if (name == "" or pwd == "") c.send("Invalid username or password");
+                if (name == "" or pwd == "") c->send("invd"); // invalid name or password
                 else {
                     std::string findResult = userControl.find(name, pwd);
-                    if (findResult == "User not found") {
+                    if (findResult == "ntfd") {
                         userControl.add(name, pwd);
-                        c.send("User \"" + name + "\" created");
+                        std::cout << "    " + name + "created\n";
+                        c->send(type + "done");
                     }
-                    else c.send("User already exists");
+                    else c->send(type + "exis"); // user name already exists
                 }
             }
             
         }
         else if (type == "prep") {
-            countPlayer++;
-            if (countPlayer == 3) {
-                new_game();
-                jow.showSituation(3);
-                deal_card();
+            if (c->user.name == "") {
+                std::cout << "Log in first\n";
+                return true;
+            }
+            if (c->user.prep == true) {
+                std::cout << "Already prepared\n";
+                return true;
+            }
+            c->user.room = allocate();
+            c->user.prep = true;
+            //c->user.id = (int)rooms[c->user.room].clients.size();
+            rooms[c->user.room].add(c);
+            if (rooms[c->user.room].clients.size() == 3) {
+                //jow.showSituation(3);
+                rooms[c->user.room].new_game();
+                std::string temp;
+                for (int i = 0; i < 3; i++) {
+                    rooms[c->user.room].clients[i]->user.id = i;
+                    temp += rooms[c->user.room].clients[i]->user.name + " ";
+                    temp += std::to_string(rooms[c->user.room].clients[i]->user.money) + " ";
+                }
+                for (int i =0; i < 3; i++) {
+                    rooms[c->user.room].clients[i]->send(type + std::to_string(rooms[c->user.room].clients[i]->user.id) + " " + temp.substr(0, temp.length() - 1));
+                    rooms[c->user.room].clients[i]->send("card" + rooms[c->user.room].jow.players[i].cardSetToString());
+                    rooms[c->user.room].game = true;
+                }
+                rooms[c->user.room].landlord = rand() % 3;
+                broadcast("csld" + std::to_string(rooms[c->user.room].landlord), c->user.room);
             }
         }
         else if (type == "uscd") {
-            std::string winner = "";
-            jow.players[c.user.id].eraseCard(Player::stringToCardSet(s));
-            std::string temp;
-            if (c.user.name == "") c.user.name = "user" + std::to_string(c.user.id);
-            temp += c.user.name + " " + jow.players[c.user.id].CardSetToString() + "\n";
-            for (std::vector<Client>::iterator i = clients.begin(); i != clients.end(); i++) {
-                if (i->user.name == c.user.name) continue;
-                if (i->user.name == "") i->user.name = "user" + std::to_string(i->user.id);
-                temp += i->user.name + " " + std::to_string(jow.players[i->user.id].cards.size());
-                if (jow.players[i->user.id].cards.size() == 0) winner = i->user.name;
-            }
-            c.send(temp);
-            if (winner != "") {
-                broadcast(winner + "wins");
-                new_game();
-            }
+            broadcast(type + s, c->user.room);
         }
-        else if (type == "chet") {
-            // 0: see through; 1: change card;
-            
-            
+        else if (type == "beld") {
+            broadcast(type + s, c->user.room);
         }
-        else if (type == "akcd") { // just for testing
-            new_game();
-            std::string temp;
-            c.user.id = s[0] - '0';
-            c.send(jow.players[c.user.id].CardSetToString());
+        else if (type == "ldld") {
+            broadcast("card" + rooms[c->user.room].jow.hiddenCards.cardSetToString(), c->user.room);
+        }
+        else if (type == "wins") {
+            rooms[c->user.room].init();
+        }
+        else if (type == "scor") {
+            userControl.update_money(c->user.name, s);
+            userControl.write();
+        }
+        else if (type == "gtsc") {
+            //userControl.update_money(c->user.name, "0");
+            int sc = userControl.get_money(c->user.name);
+            c->send(type + std::to_string(sc));
+        }
+        else if (type == "lscd") {
+            rooms[c->user.room].add_lscd(s, c->user.id);
+            if (rooms[c->user.room].lscdCount == 3) {
+                for (int i = 0; i < 3; i++) {
+                    broadcast("lscd" + rooms[c->user.room].lscd[i], c->user.room);
+                }
+            }
         }
     }
     else if (len == 0) {
@@ -164,45 +181,71 @@ bool Server::respond(Client &c) {
     return true;
 }
 
-bool Server::broadcast(std::string s) {
-    bool retn = true;
-    for (std::vector<Client>::iterator i = clients.begin(); i != clients.end(); i++) {
-        retn &= i->send(s);
-    }
-    return retn;
-}
-
-void Server::deal_card() {
-    for (int i = 0; i< 3; i++) {
-        std::string temp;
-        for (std::set<Card>::iterator j = jow.players[i].cards.begin(); j != jow.players[i].cards.end(); j++) {
-            temp += std::to_string(j->id) + " ";
+void Server::broadcast(std::string s, int roomNum) {
+    if (roomNum == -1) {
+        for (auto i = allClients.begin();
+             i != allClients.end(); i++) {
+            (*i)->send(s);
         }
-        clients[i].user.id = i;
-        clients[i].send(temp.substr(0, temp.length() - 1));
+        return;
+    }
+    for (auto i = rooms[roomNum].clients.begin();
+         i != rooms[roomNum].clients.end(); i++) {
+        (*i)->send(s);
     }
 }
 
-void Server::new_game() {
-    jow.dealtCards();
-    countPlayer = 0;
-}
 
 void Server::filter() {
-    int len = (int)clients.size(), i = 0;
+    int len = (int)allClients.size(), i = 0;
     while (i < len) {
-        if (!clients[i].status) {
-            std::cout << "Connection lost: " << clients[i].ip << ", " << clients[i].port << std::endl;
-            clients.erase(clients.begin() + (i--));
+        if (!allClients[i]->status) {
+            std::string temp = allClients[i]->ip;
+            if (allClients[i]->user.name != "") temp = allClients[i]->user.name;
+            std::cout << "Connection lost: " << temp << std::endl;
+            if (allClients[i]->user.room != -1) {
+                rooms[allClients[i]->user.room].endgame();
+            }
+            delete allClients[i];
+            allClients.erase(allClients.begin() + (i--));
             len--;
         }
         i++;
     }
+    /*
+    len = (int)rooms.size();
+    i = 0;
+    while (i < len) {
+        if (rooms[i].is_empty()) {
+            std::cout << "Room " + std::to_string(i) + " closed\n";
+            rooms.erase(rooms.begin() + i--);
+            len--;
+        }
+        i++;
+    }*/
+}
+
+int Server::allocate() {
+    int res = -1;
+    bool need = true;
+    if (!(rooms.size() == 0)) {
+        for (int i = 0; i < rooms.size(); i++) {
+            need &= rooms[i].is_full();
+            if (!rooms[i].is_full()) res = i;
+        }
+    }
+    if (need) {
+        rooms.push_back(*new Room());
+        res = (int)rooms.size() - 1;
+    }
+    return res;
 }
 
 void Server::stop() {
-    broadcast("Server has stopped");
-    clients.clear();
+    status = false;
+    broadcast("sstp");
+    rooms.clear();
+    allClients.clear();
     std::cout << "Server stopped\n";
 }
 

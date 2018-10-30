@@ -260,9 +260,10 @@ cardSet Player::stringToCardSet(std::string str)
     return nowSet;
 }
 
-std::string Player::CardSetToString() {
-    std::string temp = std::to_string(cards.size());
-    for (std::set<Card>::iterator i = cards.begin(); i != cards.end(); i++) {
+std::string Player::cardSetToString() {
+    cardSet c = cards;
+    std::string temp = std::to_string(c.size());
+    for (std::set<Card>::iterator i = c.begin(); i != c.end(); i++) {
         temp += " " + std::to_string(i->id);
     }
     return temp;

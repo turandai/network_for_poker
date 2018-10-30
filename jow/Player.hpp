@@ -23,7 +23,7 @@ public:
     void showAllCard(int opt=0);//1 for show id
     void showType();
     static cardSet stringToCardSet(std::string str);
-    std::string CardSetToString();
+    std::string cardSetToString();
     cardSet getCardSet();
     cardSet choseCard();
     cardSet cards;

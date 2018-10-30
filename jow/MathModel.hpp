@@ -14,11 +14,12 @@ public:
     void dealtCards(int randSeed=0);
     void display();
     static bool checkFollow(const cardSet &pre,const cardSet &now);
-    
+    cardSet table;
     void startLocalGame(unsigned int randSeed=0);
     void showSituation(int id);
     Player players[3];
     Player hiddenCards;
+    std::string cardSetToString();
 protected:
     
 private:

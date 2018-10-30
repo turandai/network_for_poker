@@ -21,7 +21,7 @@ bool Client::connect(std::string serverIp, int serverPort) {
     server.sin_port = htons(serverPort);
     server.sin_addr.s_addr = inet_addr(serverIp.data());
     ::connect(connectSocket, (sockaddr*)&server, sizeof(server));
-    if (recieve() == "connected" or errno == 56) {
+    if (recieve() == "cntd" or errno == 56) {
         std::cout << "Connected\n";
         return true;
     }
@@ -74,6 +74,10 @@ bool Client::ask_card(int id) {
 bool Client::use_card(std::string s) {
     std::string temp = "uscd" + s;
     return send(temp);
+}
+
+void Client::be(User &u) {
+    user = u;
 }
 
 
