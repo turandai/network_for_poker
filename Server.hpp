@@ -23,8 +23,9 @@ private:
     int allocate();
     
 public:
-    Server();
-    bool run(int = 60000);// recieve data and respond
+    Server(int = 60000);
+    bool run();// recieve data and respond
+    std::string control(std::string = "");
     void stop();
     ~Server();
     

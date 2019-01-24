@@ -1,6 +1,7 @@
 #include "Server.hpp"
+#include <thread>
 
-Server::Server() {
+Server::Server(int port) {
     memset(&server, 0, sizeof(server));
     fcntl(serverSocket, F_SETFL, fcntl(serverSocket, F_GETFL, 0) | O_NONBLOCK);
     server.sin_family = AF_INET;
@@ -12,21 +13,21 @@ Server::Server() {
     len = sizeof(clientTemp);
     status = false;
     
+    server.sin_port = htons(60000);
+    std::cout << "Server initializing...";
+    while (bind(serverSocket, (sockaddr*)&server, sizeof(server)));
+    std::cout << "done\n";
+    
     //new_game();
 }
 
-bool Server::run(int port) {
-    server.sin_port = htons(port);
-    std::cout << "Server starting...\n";
-    while (bind(serverSocket, (sockaddr*)&server, sizeof(server))) {
-        continue;
-    }
-    std::cout << "Server started successfully.\nWaiting for connections...\n";
+bool Server::run() {
+    std::cout << "Server starting...done\n";
     status = true;
     listen(serverSocket, 10);
     socklen_t len = sizeof(clientTemp);
     // running loop
-    while (true) {
+    while (status) {
         connectSocketTemp = accept(serverSocket, (sockaddr*)&clientTemp, &len);
         if (connectSocketTemp >= 0) {
             allClients.push_back(new Client(connectSocketTemp, clientTemp));
@@ -62,21 +63,36 @@ bool Server::respond(Client* c) {
             std::string name = s.substr(1, (int)s[0] - 48);
             s = s.substr(1 + (int)s[0] - 48);
             std::string pwd = s.substr(1, (int)s[0] - 48);
-            if (name == "" or pwd == "") return true;
+            if (name == "" or pwd == "") {
+                c->send(type + "empty username or password");
+                std::cout << "    empty username or password\n";
+                return true;
+            }
             bool exist = false;
             for (auto i = allClients.begin(); i != allClients.end(); i++) {
                 if ((*i)->user.name == name) exist = true;
             }
             if (exist) {
-                c->send(type + "fail");
+                //c->send(type + "fail");
+                c->send(type + name + " already logged in");
+                std::cout << "    " + name + " already logged in\n";
             }
             else {
                 std::string findResult = userControl.find(name, pwd);
                 if (findResult == "done") {
                     c->user = userControl.get(name);
+                    c->send(type + "done");
                     std::cout << "    " + name + " online\n";
                 }
-                c->send(type + findResult);
+                else if (findResult == "wpsd") {
+                    c->send(type + "wrong password");
+                    std::cout << "    wrong password for " + name + "\n";
+                }
+                else if (findResult == "ntfd") {
+                    c->send(type + "user not found");
+                    std::cout << "    user " + name + " not found\n";
+                }
+                //c->send(type + findResult);
             }
         }
         else if (type == "lgot") {
@@ -88,13 +104,17 @@ bool Server::respond(Client* c) {
             s = s.substr(1 + (int)s[0] - 48);
             bool check = true;
             if ((name[0] < 'a' or name[0] > 'z') and (name[0] < 'A' or name[0] > 'Z')) {
-                c->send(type + "bglt"); // name should begin with letter
+                //c->send(type + "bglt"); // name should begin with letter
+                c->send(type + "name should begin with letters");
+                std::cout << "    invalid name: " + name + "\n";
                 check = false;
             }
             else {
                 for (int i = 0; i < s.length(); i++) {
                     if (s[i] == ' ') {
-                        c->send(type + "nosp"); // name can't contain space
+                        //c->send(type + "nosp"); // name can't contain space
+                        c->send(type + "name can't contain space");
+                        std::cout << "    invalid name: " + name + "\n";
                         check = false;
                     }
                 }
@@ -106,10 +126,15 @@ bool Server::respond(Client* c) {
                     std::string findResult = userControl.find(name, pwd);
                     if (findResult == "ntfd") {
                         userControl.add(name, pwd);
+                        //c->send(type + "done");
+                        c->send(type + "sign up done");
                         std::cout << "    " + name + "created\n";
-                        c->send(type + "done");
                     }
-                    else c->send(type + "exis"); // user name already exists
+                    else {
+                        //c->send(type + "exis"); // user name already exists
+                        c->send(type + "user already exist");
+                        std::cout << "    " + name + " already exist\n";
+                    }
                 }
             }
             
@@ -195,7 +220,6 @@ void Server::broadcast(std::string s, int roomNum) {
     }
 }
 
-
 void Server::filter() {
     int len = (int)allClients.size(), i = 0;
     while (i < len) {
@@ -244,9 +268,95 @@ int Server::allocate() {
 void Server::stop() {
     status = false;
     broadcast("sstp");
+    shutdown(serverSocket, SHUT_RDWR);
     rooms.clear();
     allClients.clear();
-    std::cout << "Server stopped\n";
+}
+
+std::string Server::control(std::string s) {
+    std::string temp = "";
+    if (s == "help") {
+        temp += "FAL Server Instructions\n";
+        temp += "count:\n";
+        temp += "    -c: count connected clients.\n";
+        temp += "    -r: count totall rooms.\n";
+        temp += "kill:\n";
+        temp += "    -n [username]: kill a client by its name.\n";
+        temp += "    -i [userIP]: kill all clients from this ip.\n";
+        temp += "quit:\n";
+        temp += "    quit this program(only avaliable when server is stopped).\n";
+        temp += "show:\n";
+        temp += "    -c: show details of every connected clients.\n";
+        temp += "    -r: show details of all rooms.\n";
+        temp += "stop:\n";
+        temp += "    stop the server.\n";
+        return temp;
+    }
+    if (s == "count -c") return std::to_string(allClients.size());
+    if (s == "count -r") return std::to_string(rooms.size());
+    if (s == "show -c") {
+        temp += " ______________________________________\n";
+        temp += "| ip              name       room   id |\n";
+        for (auto i = allClients.begin(); i != allClients.end(); i++) {
+            temp += "| " + (*i)->ip;
+            for (int j = 0; j < 16 - (*i)->ip.length(); j++) temp += " ";
+            temp += (*i)->user.name;
+            for (int j = 0; j < 11 - (*i)->user.name.length(); j++) temp += " ";
+            temp += std::to_string((*i)->user.room);
+            for (int j = 0; j < 7 - std::to_string((*i)->user.room).length(); j++) temp += " ";
+            temp += std::to_string((*i)->user.id);
+            for (int j = 0; j < 3 - std::to_string((*i)->user.id).length(); j++) temp += " ";
+            temp += "|\n";
+        }
+        temp += " --------------------------------------";
+        return temp;
+    }
+    if (s == "show -r") {
+        temp += " ____________________________\n";
+        temp += "| num       player      game |\n";
+        for (int i = 0; i < rooms.size(); i++) {
+            temp += "| ";
+            temp += std::to_string(i) + "         ";
+            temp += std::to_string(rooms[i].clients.size()) + "           ";
+            temp += std::to_string(rooms[i].game) + "    ";
+            temp += "|\n";
+        }
+        temp += " ----------------------------";
+        return temp;
+    }
+    if (s == "stop") {
+        stop();
+        return "server stopped";
+    }
+    if (s == "quit") return "stop server first";
+    if (s == "start") return "server already started";
+    if (s.substr(0, 5) == "kill ") {
+        bool in = false, found = false;
+        if (s.substr(5, 3) == "-n ") {
+            in = true;
+            std::string name = s.substr(8, s.size() - 8);
+            for (auto i = allClients.begin(); i < allClients.end(); i++) {
+                if ((*i)->user.name == name) {
+                    (*i)->status = false;
+                    found = true;
+                }
+            }
+            if (found) return name + " killed";
+        }
+        if (s.substr(5, 3) == "-i ") {
+            in = true;
+            std::string ip = s.substr(8, s.size() - 8);
+            for (auto i = allClients.begin(); i < allClients.end(); i++) {
+                if ((*i)->ip == ip) {
+                    (*i)->status = false;
+                    found = true;
+                }
+            }
+            if (found) return ip + " killed";
+        }
+        if (in) return "no such a client";
+    }
+    return "command not found";
 }
 
 Server::~Server() {

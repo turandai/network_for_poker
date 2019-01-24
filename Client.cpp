@@ -42,6 +42,7 @@ std::string Client::recieve() {
      =0: client shut down the connection
      >0: length of recieved data
      */
+    std::cout << len << std::endl;
     if (len > 0) {
         return recvBuf;
     }
